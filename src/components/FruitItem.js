@@ -1,4 +1,4 @@
-import { Component } from '../core/youjun';
+import { Component } from '../core/core';
 //* 해석 :
 // FruitItem이라는 클래스를 Component를 상속받는다.
 // super안에서 상속받은 클래스를 실행시킨다.

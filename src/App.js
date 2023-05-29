@@ -1,4 +1,5 @@
-import { Component } from './core/youjun';
+//? 웹에서 만들어지는 component를 구성한다. 
+import { Component } from './core/core';
 import TheHeader from './components/TheHeader';
 
 export default class App extends Component {

@@ -1,4 +1,4 @@
-import { Component } from './core/youjun';
+import { Component } from './core/core';
 import FruitItem from './components/FruitItem';
 
 export default class App extends Component {

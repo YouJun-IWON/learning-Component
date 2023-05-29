@@ -574,22 +574,26 @@ function hmrAccept(bundle /*: ParcelRequire */ , id /*: string */ ) {
 }
 
 },{}],"gLLPy":[function(require,module,exports) {
+//? main.js 에서는 웹을 구성하는 component와 기능들이 어떤 순서로 동작할 것인지를 결정한다. 
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 var _app = require("./App");
 var _appDefault = parcelHelpers.interopDefault(_app);
 var _index = require("./routes/index");
 var _indexDefault = parcelHelpers.interopDefault(_index);
+// 컴포넌트 구성 (html의 태그들이 구성되어야 한다.)
 const root = document.querySelector("#root");
 root.append(new (0, _appDefault.default)().el);
+// 다양한 페이지 구성
 (0, _indexDefault.default)();
 
-},{"./App":"2kQhy","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","./routes/index":"3L9mC"}],"2kQhy":[function(require,module,exports) {
+},{"./App":"2kQhy","./routes/index":"3L9mC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"2kQhy":[function(require,module,exports) {
+//? 웹에서 만들어지는 component를 구성한다. 
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-var _youjun = require("./core/youjun");
+var _core = require("./core/core");
 var _theHeader = require("./components/TheHeader");
 var _theHeaderDefault = parcelHelpers.interopDefault(_theHeader);
-class App extends (0, _youjun.Component) {
+class App extends (0, _core.Component) {
     render() {
         // 나만의 html 요소를 만드려면 보통 2개 이상의 단어를 섞어 기존의 html 요소와의 혼동을 없애는 것이 좋다.
         const routerView = document.createElement("router-view");
@@ -598,7 +602,7 @@ class App extends (0, _youjun.Component) {
 }
 exports.default = App;
 
-},{"./core/youjun":"4Gvzt","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","./components/TheHeader":"3Cyq4"}],"4Gvzt":[function(require,module,exports) {
+},{"./core/core":"3SuZC","./components/TheHeader":"3Cyq4","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"3SuZC":[function(require,module,exports) {
 //?  Component
 //* 해석:
 // component 라는 클래스는 호출될 때 payload라는 매개변수를 받는다.
@@ -609,6 +613,9 @@ exports.default = App;
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "Component", ()=>Component);
+parcelHelpers.export(exports, "createRouter", ()=>createRouter);
+/// store ///
+parcelHelpers.export(exports, "Store", ()=>Store);
 class Component {
     constructor(payload = {}){
         const { tagName ="div" , state ={} , props ={}  } = payload;
@@ -619,6 +626,68 @@ class Component {
         this.render();
     }
     render() {}
+}
+/// Router ///
+function routeRender(routes) {
+    // 주소부분에 hash가 붙어 있는지 확인해서 *** 이 부분에서 발생할 수 있는 에러를 차단한다. 그리고 자동으로 component가 있는 화면으로 넘어갈 수 있게 된다.
+    if (!location.hash) history.replaceState(null, "", "/#/"); // history를 남기지 않으면서 창을 이동시킨다.
+    const routerView = document.querySelector("router-view");
+    // http://localhost:1234/#/about?name=youjun
+    // location.hash = #/about?name=youjun
+    const [hash, queryString = ""] = location.hash.split("?");
+    const query = queryString.split("&").reduce((acc, cur)=>{
+        const [key, value] = cur.split("=");
+        acc[key] = value;
+        return acc;
+    }, {});
+    history.replaceState(query, ""); // query가 history 객체의 state 속성에 저장된다. 즉, history의 state를 통해 주소에 저장된 query문을 전처리하여 저장후 쓸 수 있다.
+    // 현재 페이지에 입력된 hash가 실제로 존재하는 지 확인 => 있으면 페이지 새로 랜더링 *** 없으면 에러
+    const currentRoute = routes.find((route)=>new RegExp(`${route.path}/?$`).test(hash));
+    // routerView의 초기화
+    routerView.innerHTML = "";
+    // routerView에 대입
+    routerView.append(new currentRoute.component().el);
+    // 페이지 이동시 스크롤 위치 상단으로 고정
+    window.scrollTo(0, 0);
+}
+function createRouter(routes) {
+    return function() {
+        window.addEventListener("popstate", ()=>{
+            // popstate : 주소 부분이 바뀌면 실행됨
+            routeRender(routes);
+        });
+        routeRender(routes);
+    };
+}
+class Store {
+    constructor(state){
+        this.state = {};
+        this.observers = {};
+        for(const key in state)// 정의하고자 하는 데이터가 새로운 값이 할당될 때마다 필요한 함수를 실행하기 위해 defineProperty를 사용한다.
+        // this.state에 key를 할당하고, 이를 조작할 함수를 정의한다.
+        // get 함수를 통해서 실제 state가 갖고 있는 데이터를 얻을 수 있게 한다.
+        // set 함수를 통해서 새로운 값을 지정한다.
+        Object.defineProperty(this.state, key, {
+            get: ()=>state[key],
+            set: (val)=>{
+                state[key] = val;
+                // 아래와 같은 함수 실행
+                // this.observers['message']()
+                this.observers[key].forEach((observer)=>observer(val));
+            }
+        });
+    }
+    // cb = callback function
+    // this.observers['message'] = () => {}
+    // { message: () => {} } => 하나의 함수만을 등록할 수 있다.
+    // 즉, 하나의 컴포넌트/기능만 할 수 있는 것이다. 두개 이상의 컴포넌트에 동시에 영향을 줄 수 없다.
+    // 다음과 같은 방식으로 하면 다양한 함수를 등록하고 사용할 수 있다.
+    // { message: [ () => {}, () => {}, () => {} ] }
+    subscribe(key, cb) {
+        Array.isArray(this.observers[key]) ? this.observers[key].push(cb) : this.observers[key] = [
+            cb
+        ];
+    }
 }
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"gkKU3":[function(require,module,exports) {
@@ -654,8 +723,8 @@ exports.export = function(dest, destName, get) {
 },{}],"3Cyq4":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-var _youjun = require("../core/youjun");
-class TheHeader extends (0, _youjun.Component) {
+var _core = require("../core/core");
+class TheHeader extends (0, _core.Component) {
     constructor(){
         super({
             tagName: "header"
@@ -670,14 +739,17 @@ class TheHeader extends (0, _youjun.Component) {
 }
 exports.default = TheHeader;
 
-},{"../core/youjun":"4Gvzt","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"3L9mC":[function(require,module,exports) {
+},{"../core/core":"3SuZC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"3L9mC":[function(require,module,exports) {
+//? 하나의 웹이 갖고 있는 여러 페이지들이 어떤 경로를 갖고 있는지를 지정한다. 
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 var _home = require("./Home");
 var _homeDefault = parcelHelpers.interopDefault(_home);
 var _about = require("./About");
 var _aboutDefault = parcelHelpers.interopDefault(_about);
-exports.default = createRouter([
+var _core = require("../core/core");
+// 어떤 페이지들이 있는지, 그리고 어떤 path 로 접근할 수 있는지를 저장한다.
+exports.default = (0, _core.createRouter)([
     {
         path: "#/",
         component: (0, _homeDefault.default)
@@ -688,32 +760,126 @@ exports.default = createRouter([
     }
 ]);
 
-},{"./Home":"0JSNG","./About":"gdB30","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"0JSNG":[function(require,module,exports) {
+},{"./Home":"0JSNG","./About":"gdB30","../core/core":"3SuZC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"0JSNG":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-var _youjun = require("../core/youjun");
-class Home extends (0, _youjun.Component) {
+var _core = require("../core/core");
+var _textField = require("../components/TextField");
+var _textFieldDefault = parcelHelpers.interopDefault(_textField);
+var _message = require("../components/Message");
+var _messageDefault = parcelHelpers.interopDefault(_message);
+var _title = require("../components/Title");
+var _titleDefault = parcelHelpers.interopDefault(_title);
+class Home extends (0, _core.Component) {
     render() {
         this.el.innerHTML = /* html */ `
         <h1>Home Page!</h1>
         `;
+        this.el.append(new (0, _textFieldDefault.default)().el, new (0, _messageDefault.default)().el, new (0, _titleDefault.default)().el);
     }
 }
 exports.default = Home;
 
-},{"../core/youjun":"4Gvzt","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"gdB30":[function(require,module,exports) {
+},{"../core/core":"3SuZC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","../components/TextField":"e6IWT","../components/Message":"i84kQ","../components/Title":"6wotK"}],"e6IWT":[function(require,module,exports) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-var _youjun = require("../core/youjun");
-class About extends (0, _youjun.Component) {
+var _core = require("../core/core");
+var _message = require("../store/message");
+var _messageDefault = parcelHelpers.interopDefault(_message);
+class TextField extends (0, _core.Component) {
+    render() {
+        // getter (Store)
+        this.el.innerHTML = /* html */ `
+        <input value="${(0, _messageDefault.default).state.message}" /> 
+        `;
+        // setter (Store)
+        const inputEl = this.el.querySelector("input");
+        inputEl.addEventListener("input", ()=>{
+            (0, _messageDefault.default).state.message = inputEl.value;
+        });
+    }
+}
+exports.default = TextField;
+
+},{"../core/core":"3SuZC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","../store/message":"4gYOO"}],"4gYOO":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _core = require("../core/core");
+// 실제 보여질 message의 초기상태(가변성을 갖고 있는 상태)를 정의한다.
+// 그리고 message를 담당하고 있는 core.js와 TextFiled(input)를 연결한다. 
+// 또한, Message.js 컴포넌트와 연결되어 
+exports.default = new (0, _core.Store)({
+    message: "Hello~"
+});
+
+},{"../core/core":"3SuZC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"i84kQ":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _core = require("../core/core");
+var _message = require("../store/message");
+var _messageDefault = parcelHelpers.interopDefault(_message);
+class Message extends (0, _core.Component) {
+    constructor(){
+        super();
+        // messageStore가 갖고 있는 'subscribe' 함수를 실행시킨다.
+        // 'message'라는 상태/데이터 부분이 변경되는 지 감시한다.
+        // 만약 변경이 되면 callback 함수를 실행한다.
+        // constructor 함수 안에서 실행하는 이유는 'message' 값이 바뀔 때마다 render() 함수에 반영될 수 있어야 한다.
+        // 그리고 new로 정의 되어 사용되는 만큼 보여지는 값이 필요하다.
+        (0, _messageDefault.default).subscribe("message", ()=>{
+            // input 값이 들어와 message가 바뀌게 되면
+            this.render();
+        });
+    }
+    //
     render() {
         this.el.innerHTML = /* html */ `
+            <h2>${(0, _messageDefault.default).state.message}</h2>
+        `;
+    }
+}
+exports.default = Message;
+
+},{"../core/core":"3SuZC","../store/message":"4gYOO","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"6wotK":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _core = require("../core/core");
+var _message = require("../store/message");
+var _messageDefault = parcelHelpers.interopDefault(_message);
+class Title extends (0, _core.Component) {
+    constructor(){
+        super({
+            tagName: "h1"
+        });
+        (0, _messageDefault.default).subscribe("message", (newVal)=>{
+            console.log("newVal:", newVal);
+            // input 값이 들어와 message가 바뀌게 되면
+            this.render();
+        });
+    }
+    render() {
+        this.el.textContent = `Title: ${(0, _messageDefault.default).state.message}`;
+    }
+}
+exports.default = Title;
+
+},{"../core/core":"3SuZC","../store/message":"4gYOO","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"gdB30":[function(require,module,exports) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _core = require("../core/core");
+class About extends (0, _core.Component) {
+    render() {
+        const { a , b , c  } = history.state;
+        this.el.innerHTML = /* html */ `
         <h1>About Page!</h1>
+        <h2>${a}</h2>
+        <h2>${b}</h2>
+        <h2>${c}</h2>
         `;
     }
 }
 exports.default = About;
 
-},{"../core/youjun":"4Gvzt","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["f3BSW","gLLPy"], "gLLPy", "parcelRequire4a0b")
+},{"../core/core":"3SuZC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["f3BSW","gLLPy"], "gLLPy", "parcelRequire4a0b")
 
 //# sourceMappingURL=index.4d6bcbeb.js.map

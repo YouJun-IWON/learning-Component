@@ -1,4 +1,4 @@
-import { Component } from '../core/youjun';
+import { Component } from '../core/core';
 
 export default class TheHeader extends Component {
   constructor() {

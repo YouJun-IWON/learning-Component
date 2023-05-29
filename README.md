@@ -1,4 +1,4 @@
-# movie-app-vanillajs
+# movie-app-vanilla-js
 
 npm init
 npm i parcel -D
